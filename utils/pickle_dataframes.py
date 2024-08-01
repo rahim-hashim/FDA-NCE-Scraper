@@ -28,4 +28,5 @@ def unpickle_dataframes(database_folder='databases'):
 def read_excel(save_dir ='', file_name='fda_nce.xlsx'):
 	file_path = os.path.join(save_dir, file_name)
 	df = pd.read_excel(file_path)
+	print(f'FDA NCE df shape: {df.shape}')
 	return df
