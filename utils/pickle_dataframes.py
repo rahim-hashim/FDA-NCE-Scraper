@@ -25,8 +25,17 @@ def unpickle_dataframes(database_folder='databases'):
 		print(f'  {df_name} dataframe shape: {dataframes[df_name].shape}')
 	return dataframes
 
+# read excel
 def read_excel(save_dir ='', file_name='fda_nce.xlsx'):
 	file_path = os.path.join(save_dir, file_name)
 	df = pd.read_excel(file_path)
 	print(f'FDA NCE df shape: {df.shape}')
 	return df
+
+# write to csv
+def write_csv(df_all, file_name='fda_nce'):
+	print('Writing to csv...')
+	if type(file_name) == list:
+		file_name = '_'.join(file_name)
+	df_all.to_csv(os.path.join('databases', f'{file_name}.csv'), index=False)
+	print(f'  {file_name}.csv file saved.')

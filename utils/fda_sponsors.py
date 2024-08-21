@@ -54,10 +54,10 @@ fda_sponsor_list = [
 	'Bracco',
 	'Braintree Labs',
 	'Breckenridge',
-	'Bristol',
+	# 'Bristol',
 	'Bristol Myers Squibb',
-	'Bristolmyers',
-	'Bristolmyers Squibb',
+	# 'Bristolmyers',
+	# 'Bristolmyers Squibb',
 	'Btg International',
 	'Btg Intl',
 	'Cara',
@@ -178,6 +178,8 @@ fda_sponsor_list = [
 	'Mylan',
 	'Nabriva',
 	'Natco',
+	'National Cancer Institute',
+	'Nektar Therapeutics'
 	'Neurocrine',
 	'Nippon Shinyaku',
 	'Novartis',
@@ -340,9 +342,15 @@ def clean_sponsors(all_sponsors):
 	# if any fda_sponsor_list are in the list, replace with the full name
 	return all_sponsors_lower
 
-def plot_sponsors(df, sponsor_field='sponsor'):
+def myround(x, base=5):
+  return base * np.ceil(x/base)
+
+def plot_sponsors(df, drug_name_field='drug_name', sponsor_field='sponsor', unique_drugs_only=True):
 	# drop any rows that have the exact same (drug_name, sponsor) pair
-	df_sponsors = df.copy().drop_duplicates(subset=['drug_name', sponsor_field])
+	if unique_drugs_only:
+		df_sponsors = df.copy().drop_duplicates(subset=[drug_name_field, sponsor_field])
+	else:
+		df_sponsors = df.copy()
 	sponsors = df_sponsors[sponsor_field]
 	# drop any nan values
 	sponsors = [sponsor for sponsor in sponsors if sponsor != '']
@@ -362,14 +370,17 @@ def plot_sponsors(df, sponsor_field='sponsor'):
 	plt.xticks(rotation=90, fontsize=10)
 	# show each sponsor on x-axis
 	ax.set_xlabel('Sponsor', fontsize=16, fontweight='bold')
-	ax.set_ylabel('Number of Drugs Approved', fontsize=16, fontweight='bold')
-	ax.set_title('Top FDA Drug Approved Sponsors', fontsize=20, fontweight='bold')
+	ax.set_ylabel('Number of Drugs', fontsize=16, fontweight='bold')
+	# ax.set_title('Drug Sponsors', fontsize=20, fontweight='bold')
 	# round the y tick labels
-	plt.yticks(np.arange(0, max(top_sponsor_counts)+1, 1))
+	ymax = myround(max(top_sponsor_counts))+5
+	if ymax == 5:
+		ymax = 10
+	plt.yticks(np.arange(0, ymax, 5), fontsize=8)
 	plt.show()
 
 # make a plot with the largest number of sponsors
-def rename_sponsors(df, sponsor_field='fda_2_sponsor', new_field='sponsor'):
+def rename_sponsors(df, drug_name_field='drug_name', sponsor_field='fda_2_sponsor', new_field='sponsor'):
 	all_sponsors = df[sponsor_field].tolist()
 	# clean the sponsors
 	all_sponsors_lower = clean_sponsors(all_sponsors)
@@ -380,12 +391,10 @@ def rename_sponsors(df, sponsor_field='fda_2_sponsor', new_field='sponsor'):
 			if company in sponsor_split or (len(company) > 5 and company in sponsor):
 				sponsor = company
 		final_sponsors.append(sponsor)
-	drug_name_field = 'drug_name'
 	if 'fda_drug_name' in df.columns:
 		drug_name_field = 'fda_drug_name'
 	for s_index in range(len(list(final_sponsors))):
 		drug_name = df[drug_name_field].iloc[s_index]
 		print(f'  {s_index} {drug_name:<20} {all_sponsors[s_index]} -> {final_sponsors[s_index]}')
 	df[new_field] = final_sponsors
-	plot_sponsors(df, sponsor_field=new_field)
 	return df
