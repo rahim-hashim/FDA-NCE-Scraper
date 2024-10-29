@@ -33,9 +33,12 @@ def read_excel(save_dir ='', file_name='fda_nce.xlsx'):
 	return df
 
 # write to csv
-def write_csv(df_all, file_name='fda_nce'):
+def write_csv(df_all, dir_name='databases', file_name='fda_nce'):
 	print('Writing to csv...')
 	if type(file_name) == list:
 		file_name = '_'.join(file_name)
-	df_all.to_csv(os.path.join('databases', f'{file_name}.csv'), index=False)
-	print(f'  {file_name}.csv file saved.')
+	if not os.path.exists(dir_name):
+		os.makedirs(dir_name)
+	file_path = os.path.join('databases', f'{file_name}.csv')
+	df_all.to_csv(file_path, index=False)
+	print(f'  {file_path} file saved.')

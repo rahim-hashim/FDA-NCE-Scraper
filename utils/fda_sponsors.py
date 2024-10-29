@@ -360,14 +360,14 @@ def plot_sponsors(df, drug_name_field='drug_name', sponsor_field='sponsor', uniq
 	# count the number of unique sponsors from a list where value_counts() cannot be used
 	top_sponsors = pd.Series(sponsors).value_counts().nlargest(50)
 	# plot
-	f, ax = plt.subplots(1, 1, figsize=(20, 4))
+	f, ax = plt.subplots(1, 1)
 	top_sponsor_names = top_sponsors.index
 	top_sponsor_counts = top_sponsors.values
 	print(list(zip(top_sponsor_names, top_sponsor_counts)))
 	# make bar edges black
 	plt.bar(top_sponsor_names, top_sponsor_counts, edgecolor='black')
 	# rotate x-axis labels
-	plt.xticks(rotation=90, fontsize=10)
+	plt.xticks(rotation=90, fontsize=8)
 	# show each sponsor on x-axis
 	ax.set_xlabel('Sponsor', fontsize=16, fontweight='bold')
 	ax.set_ylabel('Number of Drugs', fontsize=16, fontweight='bold')
@@ -377,7 +377,10 @@ def plot_sponsors(df, drug_name_field='drug_name', sponsor_field='sponsor', uniq
 	if ymax == 5:
 		ymax = 10
 	plt.yticks(np.arange(0, ymax, 5), fontsize=8)
-	plt.show()
+	plt.tight_layout()
+	# make sure nothing is cut off
+	plt.subplots_adjust(bottom=0.6, top=0.9)
+	return f
 
 # make a plot with the largest number of sponsors
 def rename_sponsors(df, drug_name_field='drug_name', sponsor_field='fda_2_sponsor', new_field='sponsor'):

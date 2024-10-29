@@ -12,15 +12,15 @@ from utils.fda_sponsors import fda_sponsor_list, rename_sponsors
 pd.options.mode.chained_assignment = None  # default='warn'
 
 def find_drug(df, field, list_values, class_type=None, unique_values=False):
-	print('Number of rows in input dataframe:', len(df))
+	print('  Number of rows in input dataframe:', len(df))
 	if field not in df.columns:
 		print(f'  {field} not found in the dataframe...')
 		print(f'  Columns in the dataframe: {df.columns}')
 		return None
 	# drop NaN values for the field
 	df_nonnan = df.dropna(subset=[field])
-	if len(df_nonnan) < len(df):
-		print(f'  Number of rows after dropping NaN values in {field}: {len(df)}')
+	# if len(df_nonnan) < len(df):
+	# 	print(f'  Number of rows after dropping NaN values in {field}: {len(df)}')
 	if field == 'ndc_code':
 		indices = []
 		for i, code in enumerate(df['ndc_code']):
@@ -47,7 +47,7 @@ def find_drug(df, field, list_values, class_type=None, unique_values=False):
 
 # find drug function but for multiple fields
 def find_drug_multiple_fields(df, fields, list_values, unique_values=False, sort_fields=[]):
-	print('Number of rows in input dataframe:', len(df))
+	print('  Number of rows in input dataframe:', len(df))
 
 	found_drugs_df = pd.DataFrame()
 	for field in fields:
@@ -59,32 +59,36 @@ def find_drug_multiple_fields(df, fields, list_values, unique_values=False, sort
 		
 		# Drop NaN values for the current field
 		filtered_df = filtered_df.dropna(subset=[field])
-		if len(filtered_df) < len(df):
-			print(f'  Number of rows after dropping NaN values in {field}: {len(filtered_df)}')
+		# if len(filtered_df) < len(df):
+		# 	print(f'  Number of rows after dropping NaN values in {field}: {len(filtered_df)}')
 		values = [value.lower().strip() for value in list_values]
 		# Make a list of lists and strings into a list of strings
-		df_field_values = filtered_df[field].apply(lambda x: x if isinstance(x, str) else ' '.join(x))
+		try:
+			df_field_values = filtered_df[field].apply(lambda x: x if isinstance(x, str) else ' '.join(x))
+		except:
+			# print(f'  Skipping - {field}')
+			continue
 		filtered_df = filtered_df[df_field_values.str.lower().str.contains('|'.join(values), na=False)]
 		if len(filtered_df) == 0:
-			print(f'  No {field} ({list_values}) drugs found...')
+			# print(f'  No {field} ({list_values}) drugs found...')
 			continue
 		found_drugs_df = pd.concat([found_drugs_df, filtered_df], ignore_index=True)
 			
 		print(f'  Number of {field} ({list_values}) drugs found: {len(filtered_df)}')
-	print(f'Number of drugs found in all fields: {len(found_drugs_df)}')
+	print(f'  Number of drugs found in all fields: {len(found_drugs_df)}')
 	if len(found_drugs_df) == 0:
 		found_drugs_df = pd.DataFrame(columns=df.columns)
 	# Remove duplicates on 'fda_nce_id' if its in the columns
 	if 'fda_nce_id' in found_drugs_df.columns:
 		found_drugs_df = found_drugs_df.drop_duplicates(subset=['fda_nce_id'])
-		print(f'  Number of drugs found after removing duplicates: {len(found_drugs_df)}')
+		# print(f'  Number of drugs found after removing duplicates: {len(found_drugs_df)}')
 	if unique_values:
 		# keep the instance with the most non-nan columns
 		found_drugs_df['non_nan_count'] = found_drugs_df.notnull().sum(axis=1)
 		found_drugs_df = found_drugs_df.sort_values(by='non_nan_count', ascending=False).drop_duplicates(subset=[field])
 		# remove the non_nan_count column
 		found_drugs_df = found_drugs_df.drop(columns=['non_nan_count'])
-		print(f'  Number of unique {field} ({list_values}) drugs found: {len(found_drugs_df)}')
+		print(f'  Number of unique ({list_values}) drugs found: {len(found_drugs_df)}')
 	if len(sort_fields) > 0:
 		found_drugs_df = found_drugs_df.sort_values(by=sort_fields)
 		print(f'  Sorted by {sort_fields}')
