@@ -345,9 +345,14 @@ def clean_sponsors(all_sponsors):
 def myround(x, base=5):
   return base * np.ceil(x/base)
 
-def plot_sponsors(df, drug_name_field='drug_name', sponsor_field='sponsor', unique_drugs_only=True):
+def plot_sponsors(
+		df, 
+		drug_name_field='drug_name', 
+		sponsor_field='sponsor', 
+		unique_drugs_only=True
+	):
 	# drop any rows that have the exact same (drug_name, sponsor) pair
-	if unique_drugs_only:
+	if unique_drugs_only and drug_name_field:
 		df_sponsors = df.copy().drop_duplicates(subset=[drug_name_field, sponsor_field])
 	else:
 		df_sponsors = df.copy()
@@ -373,10 +378,10 @@ def plot_sponsors(df, drug_name_field='drug_name', sponsor_field='sponsor', uniq
 	ax.set_ylabel('Number of Drugs', fontsize=16, fontweight='bold')
 	# ax.set_title('Drug Sponsors', fontsize=20, fontweight='bold')
 	# round the y tick labels
-	ymax = myround(max(top_sponsor_counts))+5
-	if ymax == 5:
-		ymax = 10
-	plt.yticks(np.arange(0, ymax, 5), fontsize=8)
+	# ymax = myround(max(top_sponsor_counts))+5
+	# if ymax == 5:
+	# 	ymax = 10
+	# plt.yticks(np.arange(0, ymax, 5), fontsize=8)
 	plt.tight_layout()
 	# make sure nothing is cut off
 	plt.subplots_adjust(bottom=0.6, top=0.9)
