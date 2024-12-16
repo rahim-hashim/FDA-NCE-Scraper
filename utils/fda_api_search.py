@@ -2,6 +2,7 @@ import pandas as pd
 from collections import defaultdict
 from utils.webpage_scraping import test_connection
 from utils.pickle_dataframes import pickle_dataframe
+from utils.api_keys import fda_api_key
 
 def parse_fda_api_dict(api_results, key, fda_api_dict, drug):
 	if type(api_results[0][key]) == list:
@@ -11,21 +12,21 @@ def parse_fda_api_dict(api_results, key, fda_api_dict, drug):
 	elif type(api_results[0][key]) == str:
 		fda_api_dict[drug][key] = api_results[0][key]
 
-def get_fda_api_data(nce_id, drug, api_results, fda_api_dict=None):
+def get_fda_api_data(drug_key, drug, api_results, fda_api_dict=None):
 	if fda_api_dict == None:
 		fda_api_dict = defaultdict(lambda: defaultdict(list))
 	for key in api_results[0].keys():
 		if type(api_results[0][key]) == list:
 			if type(api_results[0][key][0]) == dict:
 				for app_key in api_results[0][key][0].keys():
-					fda_api_dict[nce_id][app_key] = api_results[0][key][0][app_key]
+					fda_api_dict[drug_key][app_key] = api_results[0][key][0][app_key]
 			else:
-				fda_api_dict[nce_id][key] = api_results[0][key]
+				fda_api_dict[drug_key][key] = api_results[0][key]
 		elif type(api_results[0][key]) == str:
-			fda_api_dict[nce_id][key] = api_results[0][key]
+			fda_api_dict[drug_key][key] = api_results[0][key]
 		elif type(api_results[0][key]) == dict:
 			for app_key in api_results[0][key].keys():
-				fda_api_dict[nce_id][app_key] = api_results[0][key][app_key]
+				fda_api_dict[drug_key][app_key] = api_results[0][key][app_key]
 		else:
 			print(api_results[0][key])
 			break
@@ -54,8 +55,28 @@ def fda_api_dict_to_df(fda_api_dict, save_df=False):
 		pickle_dataframe(fda_api_df, 'databases/fda_api_df.pkl')
 	return fda_api_df
 
+def search_fda_api(search_term):
+	fda_api_dict = defaultdict(lambda: defaultdict(list))
+	open_fda_urls = [
+		f'https://api.fda.gov/drug/drugsfda.json?api_key={fda_api_key}&search={search_term}',
+		f'https://api.fda.gov/drug/label.json?api_key={fda_api_key}&search={search_term}'
+	]
+	fda_drug_page_found = False
+	for url in open_fda_urls:
+		response = test_connection(url)
+		api_response = response.json()
+		if 'results' in api_response.keys():
+			api_results = api_response['results']
+			fda_api_dict = get_fda_api_data(0, search_term, api_results, fda_api_dict)
+			print(f'  Data found: {url}')
+			fda_drug_page_found = True
+		else:
+			print(f'  No results: {search_term}...')
+	if fda_drug_page_found == False:
+		print(f'  Missing: {search_term}...')
+	return fda_api_dict
+
 def scrape_fda_data(fda_drug_df):
-	fda_api_key = 'I1t0zDXLq61NXyrCsPdeO2mpRxcgyO5h5an4IFuA'
 	fda_api_dict = defaultdict(lambda: defaultdict(list))
 	for d_index, nce_id in enumerate(fda_drug_df['nce_id'].values):
 		# all all the fields to the fda_api_dict

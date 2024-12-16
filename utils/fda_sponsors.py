@@ -155,7 +155,7 @@ fda_sponsor_list = [
 	'Loxo Oncol',
 	'Loxo Oncol Eli Lilly',
 	'Lumicell',
-	'Lundbeck Seattle Biopharmaceuticals',
+	'Lundbeck',
 	'Lupin',
 	'Macrogenics',
 	'Madrigal',
@@ -300,7 +300,7 @@ def clean_sponsors(all_sponsors):
 			all_sponsors[s_index] = ''
 		else:
 			sponsor_count += 1
-	print(f'Found {sponsor_count}/{len(all_sponsors)} sponsors')
+	print(f'  Found {sponsor_count}/{len(all_sponsors)} sponsors')
 	# if it's a list, convert to string
 	all_sponsors = [sponsor if type(sponsor) != list else sponsor[0] for sponsor in all_sponsors]
 	all_sponsors_lower = [sponsor.lower().translate(str.maketrans('', '', string.punctuation)) for sponsor in all_sponsors]

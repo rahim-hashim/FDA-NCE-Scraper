@@ -24,10 +24,11 @@ from utils.webpage_scraping import test_connection
 from utils.pickle_dataframes import unpickle_dataframes
 from utils.ctgov_search import get_ctgov_synonyms
 from utils.drug_search import ctgov_search, find_drug_multiple_fields
-from utils.fda_sponsors import fda_sponsor_list, rename_sponsors, plot_sponsors
+from utils.fda_sponsors import fda_sponsor_list, clean_sponsors
 from utils.pubchem_search import search_pubchem
 from utils.fda_api_search import scrape_fda_data, fda_api_dict_to_df
-
+# assign terms for search from the search file
+from company_search import company_search
 
 def pubmed_links_parser(pubmed_links):
 	'''
@@ -84,7 +85,7 @@ def pubmed_links_parser(pubmed_links):
 		searchHash['author_institutions'] = author_institutions
 		searchesHash[PMID] = searchHash
 		# pause for a second to avoid overloading the server
-		time.sleep(1)
+		time.sleep(0.5)
 	return searchesHash
 
 def load_databases():
@@ -101,11 +102,19 @@ def ordered_df(df_key):
 		'combined_fda_df': ['fda_year', 'fda_year_approval_count'],
 		'ctgov_df': ['Study Title'],
 		'dailymed_df': ['drug_name'],
+		'fda_api_df': ['year', 'year_approval_count'],
 	}
 	if df_key in order_by_dict.keys():
 		return order_by_dict[df_key]
 	else:
 		return order_by_dict['combined_fda_df']
+
+def flatten_list(l):
+	for el in l:
+		if isinstance(el, list):
+			yield from flatten_list(el)
+		else:
+			yield el
 
 df_keys_dict = \
 	{'ctgov_df': 
@@ -179,61 +188,222 @@ def write_pubchem_to_markdown(df, drug_name, active_ingredient, file):
 				f.write('> * No Pubmed Articles Found\n')
 		else:
 			f.write('> * No PubChem Results Found\n')
+		# return file still open
+		return f
 
-def write_fda_to_markdown(f, df, search_term, cols, sort_by):
-	f.write(f'#### {search_term}\n')
-	f.write(f'**FDA Approvals**\n\n')
-	if len(df) == 1:
-		f.write(df[cols].to_markdown(index=False))
-	if len(df) > 1:
-		df = df.sort_values(by=ordered_df(sort_by), ascending=False)
-		f.write(df[cols].to_markdown(index=False))
+def write_fda_to_markdown(f, df, search_term, field='active_ingredient'):
+	file_path = f.name
+	with open(file_path, 'a') as f:
+		# prettify list of search terms for markdown
+		if isinstance(search_term, list):
+			search_term = ', '.join(search_term)
+		# prettify the field for markdown
+		field_string = field.replace('_', ' ').capitalize()
+		f.write(f'#### {field_string}:\n\n')
+		f.write(f'**{search_term}**\n\n')
+		# cols = [
+		# 	'year',
+		# 	'year_approval_count',
+		# 	'drug_name',
+		# 	'active_ingredient',
+		# 	'approval_date',
+		# 	'approved_use', 
+		# 	'dosage_and_administration', 
+		# 	'mechanism_of_action'
+		# ]
+		cols = [
+			'year', 
+			'approval_date', 
+			'drug_name',
+      'active_ingredient', 
+			'submission_type',
+			'indications_and_usage',
+			'mechanism_of_action',
+			'sponsor',
+			'drug_link'
+		]
+		# convert 'approval_date' column to YYYY-MM-DD format
+		df['approval_date'] = pd.to_datetime(df['approval_date']).dt.strftime('%Y-%m-%d')
+		# shorten the [text] in the 'indications_and_usage' and 'mechanism_of_action' columns to max 200 
+		# text is in a list so first convert to string
+		df['indications_and_usage'] = \
+			df['indications_and_usage'].apply(lambda x: textwrap.shorten(' '.join(x), width=200, placeholder='...'))
+		df['mechanism_of_action'] = \
+			df['mechanism_of_action'].apply(lambda x: textwrap.shorten(' '.join(x), width=200, placeholder='...'))
+		df['drug_link'] = df['drug_link'].apply(lambda x: f'[link]({x})')
+		if len(df) == 1:
+			f.write(df[cols].to_markdown(index=False))
+		if len(df) > 1:
+			# sort by year and then by year_approval_count
+			df = df.sort_values(by=ordered_df('fda_api_df'))
+			f.write(df[cols].to_markdown(index=False))
+		else:
+			f.write('> * No Approved Drugs Found\n')
+		f.write('\n\n')
+
+def plot_sponsors_report(
+		df, 
+		drug_name_field='drug_name', 
+		sponsor_field='sponsor', 
+		unique_drugs_only=True
+	):
+	# drop any rows that have the exact same (drug_name, sponsor) pair
+	if unique_drugs_only and drug_name_field:
+		df_sponsors = df.copy().drop_duplicates(subset=[drug_name_field, sponsor_field])
 	else:
-		f.write('> * No Approved Drugs Found\n')
-	f.write('\n\n')
+		df_sponsors = df.copy()
+	sponsors = df_sponsors[sponsor_field]
+	# drop any nan values
+	sponsors = [sponsor for sponsor in sponsors if sponsor != '']
+	if len(sponsors) == 0:
+		print('No sponsors found')
+		return
+	# count the number of unique sponsors from a list where value_counts() cannot be used
+	top_sponsors = pd.Series(sponsors).value_counts().nlargest(50)
+	# plot
+	f, axarr = plt.subplots(1, 2, dpi=300, sharey=True)
+	top_sponsor_names = top_sponsors.index
+	top_sponsor_counts = top_sponsors.values
+	# print(list(zip(top_sponsor_names, top_sponsor_counts)))
+	# make bar edges black
+	axarr[0].bar(top_sponsor_names, top_sponsor_counts, edgecolor='black', color='#6B95B6')
+	# rotate x-axis labels
+	axarr[0].set_xticks(range(len(top_sponsor_names)))
+	# for s_index, sponsor in enumerate(top_sponsor_names):
+	# 	sponsor_df = df[df[sponsor_field] == sponsor]
+	# 	statuses = phase_df['Status']
+	# 	completed_studies = len([status for status in statuses if status == 'Completed'])
+	# 	# plot as darker green if completed
+	# 	if completed_studies > 0:
+	# 		axarr[1].bar(p_index, top_phase_counts[p_index], edgecolor='black', color='#7eb1a1')
+	# 	recruiting_studies = len([status for status in statuses if status == 'Recruiting'])
+	# 	if recruiting_studies > 0:
+	# 		axarr[1].bar(p_index, completed_studies+recruiting_studies, edgecolor='black', color='#deebe7')
+	top_sponsors_truncated = [textwrap.shorten(sponsor, width=30, placeholder='...') for sponsor in top_sponsor_names]
+	# make xticks font size to be proportional to the number of sponsors
+	xtick_fontsize = 6 if len(top_sponsor_names) < 10 else 4
+	axarr[0].set_xticklabels(top_sponsors_truncated, rotation=90, fontsize=xtick_fontsize, fontname='Optima')
+	# show each sponsor on x-axis
+	axarr[0].set_xlabel('Sponsor', fontsize=12, fontweight='bold', fontname='Optima')
+	axarr[0].set_ylabel('Number of Clinical Trials', fontsize=12, fontweight='bold', fontname='Optima')
+	plt.tight_layout()
+	# make sure nothing is cut off
+	plt.subplots_adjust(bottom=0.6, top=0.9)
+	# create a second plot with the same bar plot but with Phases on the x-axis and sort by Phases (i.e. PHASE1, PHASE2, PHASE3, PHASE4)
+	phases = df['Phases']
+	phases = [phase for phase in phases if (phase != '') and (phase != 'NA')]
+	# sort the phases
+	phases = sorted(list(phases))
+	# plot a bar graph of the number of drugs in each phase
+	top_phases = pd.Series(phases).value_counts()
+	# make sure it is sorted by phase
+	sorted_top_phases = top_phases.sort_index()
+	top_phase_names = sorted_top_phases.index
+	top_phase_counts = sorted_top_phases.values
+	# plot the number of drugs in each phase with hex AECEC4
+	axarr[1].bar(top_phase_names, top_phase_counts, edgecolor='black', color='#AECEC4')
+	# rotate x-axis labels
+	axarr[1].set_xticks(range(len(top_phase_names)))
+	axarr[1].set_xticklabels(top_phase_names, rotation=90, fontsize=6, fontname='Optima')
+	# show each sponsor on x-axis
+	axarr[1].set_xlabel('Phases', fontsize=12, fontweight='bold', fontname='Optima')
+	# show the status of the studies in each phase
+	for p_index, phase in enumerate(top_phase_names):
+		phase_df = df[df['Phases'] == phase]
+		statuses = phase_df['Study Status']
+		completed_studies = len([status for status in statuses if status == 'Completed'])
+		# plot as darker green if completed
+		if completed_studies > 0:
+			axarr[1].bar(p_index, top_phase_counts[p_index], edgecolor='black', color='#7eb1a1')
+		recruiting_studies = len([status for status in statuses if status == 'Recruiting'])
+		if recruiting_studies > 0:
+			axarr[1].bar(p_index, completed_studies+recruiting_studies, edgecolor='black', color='#deebe7')
+	# set yticks to be integers with only 0 and the rounded max value closest to 5 with 5 ticks regardless of the max value
+	max_y = max(max(top_sponsor_counts), max(top_phase_counts))
+	# round up to the nearest 5
+	max_y = int(max_y + 5 - (max_y % 5))
+	axarr[0].set_yticks(range(0, max_y, int(max_y / 5)))
+	plt.tight_layout()
+	return f
 
-def write_ctgov_to_markdown(f, search_term, cols):
-	# convert list to string in ['Drug Name'] column
-	# df['Drug Name'] = df['Drug Name'].apply(lambda x: ', '.join(x))
-	df = ctgov_search(search_term)
-	# standardize sponsor names
-	# df = rename_sponsors(df, drug_name_field='NCT Number', sponsor_field='Sponsor')
+# make a plot with the largest number of sponsors
+def rename_sponsors_report(df, drug_name_field='drug_name', sponsor_field='fda_2_sponsor', new_field='sponsor'):
+	all_sponsors = df[sponsor_field].tolist()
+	# clean the sponsors
+	all_sponsors_lower = clean_sponsors(all_sponsors)
+	final_sponsors = []
+	for sponsor in all_sponsors_lower:
+		sponsor_split = sponsor.split()
+		for company in fda_sponsor_list:
+			if company in sponsor_split or (len(company) > 5 and company in sponsor):
+				sponsor = company
+		final_sponsors.append(sponsor)
+	if 'fda_drug_name' in df.columns:
+		drug_name_field = 'fda_drug_name'
+	for s_index in range(len(list(final_sponsors))):
+		drug_name = df[drug_name_field].iloc[s_index]
+		# print(f'  {s_index} {drug_name:<20} {all_sponsors[s_index]} -> {final_sponsors[s_index]}')
+	df[new_field] = final_sponsors
+	return df
+
+def write_ctgov_sponsors_to_markdown(f, df, search_term, file_path):
+	df = rename_sponsors_report(df, drug_name_field='NCT Number', sponsor_field='Sponsor')
 	# plot sponsors
-	sponsor_figure = plot_sponsors(
+	sponsor_figure = plot_sponsors_report(
 		df, 
 		drug_name_field=None, 
 		sponsor_field='Sponsor', 
-		unique_drugs_only=False
+		unique_drugs_only=True
 	)
-	if sponsor_figure is not None:
+	if search_term != 'all':
+		ctgov_link = f'https://clinicaltrials.gov/search?term={search_term}'
+		f.write(f'**{search_term} ([link]({ctgov_link}))**\n')
+	else:
+		f.write(f'**All Synonyms\n')
+	min_sponsor_count = 10
+	if sponsor_figure is not None and len(df) > min_sponsor_count:
 		# get directory name for file
-		file_path = f.name
 		dir_name = os.path.join(os.path.dirname(file_path), 'images')
 		# make the directory if it doesn't exist
 		if not os.path.exists(dir_name):
 			os.makedirs(dir_name)
 		figure_path = os.path.join(dir_name, f'sponsor_plot_{search_term}.png')
 		sponsor_figure.savefig(figure_path)
-		f.write(f'**Clinical Trial Sponsors**\n')
 		f.write(f'![sponsor_plot](images/sponsor_plot_{search_term}.png)')
 		f.write('\n')
-	# sort dataframe by most recent start date
-	df = df.sort_values(by='Start Date', ascending=False).head(10)
-	# make a markdown table with the first 20 rows
-	f.write('\n')
-	if len(df) > 0:
-		print(df)
-		f.write(df[cols].to_markdown(index=False))
-	else:
+	# sort dataframe by most recent start date and write the date, title, and sponsor to the markdown file
+	cols = ['Start Date', 'Completion Date', 'NCT Number', 'Study Title', 'Sponsor', 'Phases', 'Conditions']
+	ct_dates_df = pd.DataFrame(columns=cols)
+	if len(df) == 0:
 		f.write('> * No Clinical Trials Found\n')
+		return
+	first_date_info = df.sort_values(by='Start Date', ascending=True).iloc[0][cols]
+	ct_dates_df = pd.concat([ct_dates_df, pd.DataFrame(first_date_info).T], axis=0)
+	if len(df) > 1:
+		last_date_info = df.sort_values(by='Start Date', ascending=False).iloc[0][cols]
+		ct_dates_df = pd.concat([ct_dates_df, pd.DataFrame(last_date_info).T], axis=0)
+	# conver all 'NCT Number' to links
+	ct_dates_df['NCT Number'] = ct_dates_df['NCT Number'].apply(lambda x: f'[{x}](https://clinicaltrials.gov/study/{x})')
+	f.write(ct_dates_df.to_markdown(index=False))
 	f.write('\n\n')
 
-def write_to_markdown(df_key, search_term, file, df):
-	with open(file, 'a') as f:
-		if df_key == 'combined_fda_df' or df_key == 'company_search':
-			write_fda_to_markdown(f, df, search_term, df.columns[1:], ordered_df(df_key))
-		if df_key == 'ctgov_df' or df_key == 'company_search':
-			write_ctgov_to_markdown(f, search_term, df_cols('ctgov_df'))
+def write_ctgov_to_markdown(f, ctgov_df):
+	search_terms = list(flatten_list([ctgov_df['Search Term'].values]))[0]
+	search_terms = list(set(flatten_list(search_terms)))
+	print(f'  Number of synonyms in ctgov: {len(search_terms)}')
+	file_path = f.name
+	with open(file_path, 'a') as f:
+		f.write('\n#### Clinical Trials\n\n')
+		write_ctgov_sponsors_to_markdown(f, ctgov_df, 'all', file_path)
+		for search_term in search_terms:
+			df = ctgov_df[ctgov_df['Search Term'].apply(lambda x: search_term in x)]
+			# standardize sponsor names
+			write_ctgov_sponsors_to_markdown(f, df, search_term, file_path)
+
+def synonym_ctgov_search(pubchem_df):
+	if len(pubchem_df) > 0:
+		ctgov_df = get_ctgov_synonyms(pubchem_df)
+		return ctgov_df
 
 def default_search(
 		df_dict, 
@@ -241,8 +411,11 @@ def default_search(
 		company_name='Gateway Neuroscience',
 		drug_name='zelquistinel', 
 		active_ingredient='NMDAR', 
-		search_terms=['cancer']
+		indication=['neurodegeneration'],
+		target=['NMDAR'],
+		mechanism=['NMDAR antagonist']
 ):
+	# search for drug/active ingredient in pubchem
 	print(f'PubChem Search: {drug_name} ({active_ingredient})')
 	pubchem_df = search_pubchem(
 		pd.DataFrame(
@@ -250,50 +423,89 @@ def default_search(
 			data=[[drug_name, active_ingredient]]),
 		save_df=False
 	)
-	write_pubchem_to_markdown(pubchem_df, drug_name, active_ingredient, f)
+	f = write_pubchem_to_markdown(pubchem_df, drug_name, active_ingredient, f)
 	
-	if len(pubchem_df) > 0:
-		ctgov_df = get_ctgov_synonyms(pubchem_df)
+	# search for synonyms in ctgov
+	ctgov_df = synonym_ctgov_search(pubchem_df)
+	write_ctgov_to_markdown(f, ctgov_df)
+		
+	# FDA drug/active ingredient search
+	## separate by indication, separate by target - maybe from chatgpt/perplexity?
+	## access both static FDA table and API
+	### eventually get to standard of care for indication - FDA approved drugs for this indication
+	print(f'FDA Search: {drug_name} ({active_ingredient})')
+	file_path = f.name
+	with open(file_path, 'a') as f:
+		f.write(f'### FDA Approved Drugs\n\n')
 
-	# Company search
-	# df = df_dict['combined_fda_df']
-	# df_results = find_drug_multiple_fields(
-	# 	df,
-	# 	list(df.columns),
-	# 	[company_name],
-	# 	unique_values=False
-	# )
-	# write_to_markdown(
-	# 	'company_search',
-	# 	company_name,
-	# 	f,
-	# 	df_results			 
-	# )
-	# # search terms
+	df_drugs = df_dict['fda_api_df']
+	drug_search_terms = [active_ingredient, drug_name]
+	df_results = find_drug_multiple_fields(
+		df_drugs,
+		list(df_drugs.columns),
+		drug_search_terms,
+		unique_values=True
+	)
+
+	write_fda_to_markdown(
+		f,
+		df_results,
+		drug_search_terms,
+		field='active_ingredient'
+	)
+
+	# FDA search terms for each search term
 	# for search_term in search_terms:
-	# 	print(f'Searching {search_term}...')
-	# 	for d_index, df_key in enumerate(['combined_fda_df', 'ctgov_df']):
-	# 		print(f' Searching {df_key}...')
-	# 		df = df_dict[df_key]
-	# 		df_results = find_drug_multiple_fields(
-	# 			df,
-	# 			list(df.columns),
-	# 			[search_term],
-	# 			unique_values=False
-	# 		)
-	# 		write_to_markdown(
-	# 			df_key,
-	# 			search_term, 
-	# 			f, 
-	# 			df_results
-	# 		)
+	print(f'Searching Indication: {indication}...')
+	df_results = find_drug_multiple_fields(
+		df_drugs,
+		['indications_and_usage'],
+		indication,
+		unique_values=True
+	)
+	write_fda_to_markdown(
+		f,
+		df_results,
+		indication,
+		field='indications_and_usage'
+	)
+
+	print(f'Searching Target: {target}...')
+	df_results = find_drug_multiple_fields(
+		df_drugs,
+		['mechanism_of_action'],
+		target,
+		unique_values=True
+	)
+	write_fda_to_markdown(
+		f,
+		df_results,
+		target,
+		field='mechanism_of_action'
+	)
+
+	print(f'Searching Mechanism: {mechanism}...')
+	df_results = find_drug_multiple_fields(
+		df_drugs,
+		['mechanism_of_action'],
+		mechanism,
+		unique_values=True,
+
+	)
+	write_fda_to_markdown(
+		f,
+		df_results,
+		mechanism
+	)
 
 def main(
 		pdf_name = 'Gate Neurosciences Series B - September 2024.pdf', 
 		company_name = 'Gateway Neuroscience',
 		drug_name = 'zelquistinel',
 		active_ingredient = 'NMDAR',
-		search_terms = ['neurodegeneration']
+		indication = ['neurodegeneration'],
+		target = ['NMDAR'],
+		mechanism = ['NMDAR antagonist'],
 	):
 
 	df_dict = load_databases()
@@ -306,28 +518,53 @@ def main(
 		pdf_name=pdf_name
 	)
 	# search for terms in the databases
-	default_search(
+	ctgov_df = default_search(
 		df_dict, 
 		report_path,
 		company_name = company_name,
 		drug_name = drug_name,
 		active_ingredient = active_ingredient, 
-		search_terms = search_terms
+		indication = indication,
+		target = target,
+		mechanism = mechanism
 	)
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Read provided pitch deck and write results to markdown')
+	# boolean search_file argument that is default true unless otherwise specified
+	parser.add_argument('--search_file', action='store_true', help='generate terms from search file')
 	parser.add_argument('--file', help='diligence file name')
 	parser.add_argument('--company_name', help='company name')
 	parser.add_argument('--drug_name', help='drug name to search')
 	parser.add_argument('--active_ingredient', help='active ingredient to search')
-	parser.add_argument('--search_terms', nargs='+', help='search terms')
+	parser.add_argument('--indication', nargs='+', help='search terms for indication')
+	parser.add_argument('--target', nargs='+', help='search terms for drug target')
+	parser.add_argument('--mechanism', nargs='+', help='search terms for mechanism of action')
 	args = parser.parse_args()
+
+	if args.search_file:
+		print('Using company_search for search terms...')
+		company_name = company_search['company_name']
+		drug_name = company_search['drug_name']
+		active_ingredient = company_search['active_ingredient']
+		search_terms = company_search['active_ingredient']
+		indication = company_search['indication']
+		target = company_search['target']
+		mechanism = company_search['mechanism']
+	else:
+		company_name = args.company_name
+		drug_name = args.drug_name
+		active_ingredient = args.active_ingredient
+		indication = args.indication
+		target = args.target
+		mechanism = args.mechanism
 
 	main(
 		pdf_name=args.file, 
-		company_name=args.company_name, 
-		drug_name=args.drug_name, 
-		active_ingredient=args.active_ingredient,
-		search_terms=args.search_terms
+		company_name=company_name,
+		drug_name=drug_name,
+		active_ingredient=active_ingredient,
+		indication=indication,
+		target=target,
+		mechanism=mechanism
 	)
