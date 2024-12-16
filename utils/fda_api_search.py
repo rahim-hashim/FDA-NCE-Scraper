@@ -12,7 +12,7 @@ def parse_fda_api_dict(api_results, key, fda_api_dict, drug):
 	elif type(api_results[0][key]) == str:
 		fda_api_dict[drug][key] = api_results[0][key]
 
-def get_fda_api_data(drug_key, drug, api_results, fda_api_dict=None):
+def get_fda_api_data(drug_key, api_results, fda_api_dict=None):
 	if fda_api_dict == None:
 		fda_api_dict = defaultdict(lambda: defaultdict(list))
 	for key in api_results[0].keys():
@@ -67,7 +67,7 @@ def search_fda_api(search_term):
 		api_response = response.json()
 		if 'results' in api_response.keys():
 			api_results = api_response['results']
-			fda_api_dict = get_fda_api_data(0, search_term, api_results, fda_api_dict)
+			fda_api_dict = get_fda_api_data(search_term, api_results, fda_api_dict)
 			print(f'  Data found: {url}')
 			fda_drug_page_found = True
 		else:
@@ -95,7 +95,7 @@ def scrape_fda_data(fda_drug_df):
 			api_response = response.json()
 			if 'results' in api_response.keys():
 				api_results = api_response['results']
-				fda_api_dict = get_fda_api_data(nce_id, drug, api_results, fda_api_dict)
+				fda_api_dict = get_fda_api_data(nce_id, api_results, fda_api_dict)
 				print(f'  Data found: {url}')
 				fda_drug_page_found = True
 			else:
