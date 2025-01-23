@@ -33,7 +33,7 @@ def get_fda_api_data(drug_key, api_results, fda_api_dict=None):
 	return fda_api_dict
 
 # convert fda_api_dict to a dataframe
-def fda_api_dict_to_df(fda_api_dict, save_df=False):
+def fda_api_dict_to_df(fda_api_dict, save_df=False, save_path='databases/fda_api_df.pkl'):
 	if len(fda_api_dict) == 0:
 		print('WARNING: fda_api_dict is empty...')
 		return None
@@ -52,7 +52,7 @@ def fda_api_dict_to_df(fda_api_dict, save_df=False):
 		fda_api_df = pd.concat([fda_api_df, pd.DataFrame([data], columns=columns)], ignore_index=True)
 	print(f'Number of drugs in fda_api_df: {fda_api_drug_count}')
 	if save_df:
-		pickle_dataframe(fda_api_df, 'databases/fda_api_df.pkl')
+		pickle_dataframe(fda_api_df, save_path)
 	return fda_api_df
 
 def search_fda_api(search_term):
@@ -76,14 +76,14 @@ def search_fda_api(search_term):
 		print(f'  Missing: {search_term}...')
 	return fda_api_dict
 
-def scrape_fda_data(fda_drug_df):
+def scrape_fda_data(fda_drug_df, id_col='nce_id'):
 	fda_api_dict = defaultdict(lambda: defaultdict(list))
-	for d_index, nce_id in enumerate(fda_drug_df['nce_id'].values):
+	for d_index, drug_id in enumerate(fda_drug_df[id_col].values):
 		# all all the fields to the fda_api_dict
-		fda_drug_row = fda_drug_df[fda_drug_df['nce_id'] == nce_id]
+		fda_drug_row = fda_drug_df[fda_drug_df[id_col] == drug_id]
 		drug = fda_drug_row['drug_name'].iloc[0]
 		for col in fda_drug_row.columns:
-			fda_api_dict[nce_id][col] = fda_drug_row[col].iloc[0]
+			fda_api_dict[drug_id][col] = fda_drug_row[col].iloc[0]
 		print(f'Getting FDA API data for {drug}...({d_index+1}/{len(fda_drug_df)})')
 		open_fda_urls = [
 			f'https://api.fda.gov/drug/drugsfda.json?api_key={fda_api_key}&search={drug}',
@@ -95,7 +95,7 @@ def scrape_fda_data(fda_drug_df):
 			api_response = response.json()
 			if 'results' in api_response.keys():
 				api_results = api_response['results']
-				fda_api_dict = get_fda_api_data(nce_id, api_results, fda_api_dict)
+				fda_api_dict = get_fda_api_data(drug_id, api_results, fda_api_dict)
 				print(f'  Data found: {url}')
 				fda_drug_page_found = True
 			else:

@@ -1,12 +1,21 @@
-# NoveMed
+# # Azora Therapeutics
 company_search = {
-	'company_name'			: 'NovelMed',
-	'drug_name'					: 'NM8074',
-	'active_ingredient'	: 'complement factor Bb',
-	'indication'				: ['Paroxysmal nocturnal hemoglobinuria', 'PNH', 'aHUS', 'hemolytic uremic syndrome'],
-	'target'						: ['Bb', 'complement factor B', 'complement factor Bb', 'complement factor B inhibitor'],
-	'mechanism'					: ['complement factor']
+	'company_name'			: 'Azora Therapeutics',
+	'drug_name'					: 'ATT177',
+	'active_ingredient'	: 'ATT177',
+	'target'						: ['aryl hydrocarbon receptor', 'T-helper 17'],
+	'indication'				: ['autoimmune', 'inflammatory bowel disease', 'psoriasis', 'hidradenitis suppurativa'],
+	'mechanism'					: ['aryl hydrocarbon receptor', 'T-helper 17']
 }
+
+# company_search = {
+# 	'company_name'			: 'Bristol-Myers Squibb',
+# 	'drug_name'					: 'cobenfy', 
+# 	'active_ingredient'	: 'xanomeline',
+# 	'indication'				: ['schizophrenia', 'dopamine', 'serotonin'],
+# 	'target'						: ['muscarinic'],
+# 	'mechanism'					: ['muscarinic antagonist']
+# }
 
 # Crossbridge Bio
 company_search = {
@@ -38,7 +47,18 @@ company_search = {
 # 	'mechanism'					: ['nanoparticle', 'nanoparticles']
 # }
 
-# # Shenandoah Therapeutics
+# NovelMed
+# company_search = {
+# 	'company_name'			: 'NovelMed',
+# 	'drug_name'					: 'NM8074',
+# 	'active_ingredient'	: 'complement factor Bb',
+# 	'indication'				: ['Paroxysmal nocturnal hemoglobinuria', 'PNH', 'aHUS', 'hemolytic uremic syndrome'],
+# 	'target'						: ['Bb', 'complement factor B', 'complement factor Bb', 'complement factor B inhibitor'],
+# 	'mechanism'					: ['complement factor']
+# }
+
+
+# Shenandoah Therapeutics
 # company_search = {
 # 	'company_name'			: 'Shenandoah Therapeutics',
 # 	'drug_name'					: 'TCIP1',
@@ -46,14 +66,4 @@ company_search = {
 # 	'indication'				: ['lymphoma'],
 # 	'target'						: ['BCL6', 'B-cell lymphoma', 'B cell lymphoma', 'CDK9', 'cyclin-dependent kinase'],
 # 	'mechanism'					: ['BCL6', 'B-cell lymphoma', 'B cell lymphoma', 'CDK9', 'cyclin-dependent kinase']
-# }
-
-# # Azora Therapeutics
-# company_search = {
-# 	'company_name'			: 'Azora Therapeutics',
-# 	'drug_name'					: 'ATT177',
-# 	'active_ingredient'	: 'ATT177',
-# 	'target'						: ['aryl hydrocarbon receptor', 'T-helper 17'],
-# 	'indication'				: ['autoimmune', 'inflammatory bowel disease', 'psoriasis', 'hidradenitis suppurativa'],
-# 	'mechanism'					: ['aryl hydrocarbon receptor', 'T-helper 17']
 # }

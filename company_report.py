@@ -27,8 +27,52 @@ from utils.drug_search import ctgov_search, find_drug_multiple_fields
 from utils.fda_sponsors import fda_sponsor_list, clean_sponsors
 from utils.pubchem_search import search_pubchem
 from utils.fda_api_search import scrape_fda_data, fda_api_dict_to_df
+from utils.pubmed_parser import SearchParameters, entrezSearch, linksParser, semantic_scholar_search, construct_dataframe
 # assign terms for search from the search file
 from company_search import company_search
+# ollama
+from ollama import chat, ChatResponse
+
+def dataParser(resultsList, searchParameters):
+	"""
+	dataParser creates a multi-nested dictionary
+	containing all article data for each search term
+
+	Args:
+		resultsList (list): list of all article URLs for each search term
+
+	Returns:
+		data (dict): multi-nested dictionary containing all article data for each search term
+	"""
+	print('\nParsing info for search terms...')
+	queriesHash = defaultdict(lambda: defaultdict(list)) # primary key = pubmed query
+	for a_index, termLinks in enumerate(resultsList):
+		query = searchParameters.searchTerms[a_index]
+		searchesHash = linksParser(termLinks, searchParameters, query)
+		queriesHash[query] = searchesHash
+	return queriesHash
+
+def pubmed_search(search_terms):
+	parameters = {}
+	# Database : Specified NCBI database
+	#   Options = Pubmed [pubmed] | Pubmed Central [PMC] | Unigene [Unigene] | Others [Look Up Key]
+	parameters['database'] = 'pubmed'
+	# SearchTerms : PubMed desired search term(s)
+	parameters['searchTerms'] = search_terms
+	# searchLimit : Max number of articles for each search term
+	parameters['searchLimit'] = 5
+	# StartIndex : The start index for the search (larger for older papers)
+	parameters['startIndex'] = 0
+	searchParameters = SearchParameters(parameters)
+	resultsList = entrezSearch(searchParameters)
+	searchesHash = dataParser(resultsList, searchParameters)
+	# searchesHash = semantic_scholar_search(searchesHash, verbose=True)
+	authors_df = construct_dataframe(searchesHash)
+	abstract_text_list = authors_df['abstract'].tolist()
+	# combine into one string but getting rid of typeError: sequence item 0: expected str instance, float found
+	abstract_text_list = [str(abstract) for abstract in abstract_text_list if abstract is not None]
+	abstract_text = ' '.join(abstract_text_list)
+	return abstract_text
 
 def pubmed_links_parser(pubmed_links):
 	'''
@@ -122,7 +166,7 @@ df_keys_dict = \
 		 'Study Status', 
 		#  'Brief Summary', 
 		 'Study Results', 'Conditions',
-     'Interventions', 'Sponsor', 'Collaborators', 'Phases', 'Enrollment', 
+		 'Interventions', 'Sponsor', 'Collaborators', 'Phases', 'Enrollment', 
 		 'Funder Type', 'Study Type', 
 		 'Start Date', 'Primary Completion Date', 'Completion Date', 
 		 'First Posted', 'Results First Posted', 'Last Update Posted', 
@@ -215,7 +259,7 @@ def write_fda_to_markdown(f, df, search_term, field='active_ingredient'):
 			'year', 
 			'approval_date', 
 			'drug_name',
-      'active_ingredient', 
+			'active_ingredient', 
 			'submission_type',
 			'indications_and_usage',
 			'mechanism_of_action',
@@ -359,7 +403,7 @@ def write_ctgov_sponsors_to_markdown(f, df, search_term, file_path):
 		ctgov_link = f'https://clinicaltrials.gov/search?term={search_term}'
 		f.write(f'**{search_term} ([link]({ctgov_link}))**\n')
 	else:
-		f.write(f'**All Synonyms\n')
+		f.write(f'**All Synonyms**\n')
 	min_sponsor_count = 10
 	if sponsor_figure is not None and len(df) > min_sponsor_count:
 		# get directory name for file
@@ -405,6 +449,71 @@ def synonym_ctgov_search(pubchem_df):
 		ctgov_df = get_ctgov_synonyms(pubchem_df)
 		return ctgov_df
 
+def llama_to_markdown(		
+		f, 
+		company_name, 
+		drug_name, 
+		active_ingredient, 
+		indication, 
+		target, 
+		mechanism,
+		abstract_text
+	):
+	# write the response from llama to the markdown file
+	file_path = f.name
+	
+	# ask llama about the company
+	print(f'  Asking llama3.2 about {company_name}')
+	company_response: ChatResponse = chat(
+		model='llama3.2', messages=[
+		{
+		'role': 'user',
+		'content': 
+			f'What do you know about {company_name}? Describe their lead drug,\
+			including the indication and mechanism of action.',
+		},
+	])
+	print(f'  Asking llama3.2 about {drug_name}')
+	drug_response: ChatResponse = chat(model='llama3.2', messages=[
+		{
+			'role': 'user',
+			'content': 
+				f'What do you know about {drug_name} and/or {active_ingredient}? \
+				Describe the drug\'s mechanism of action, which is {mechanism}, \
+				and its target, which is {target} for the indication {indication}.\
+				Additionally, what is the standard of care for this indication?',
+		},
+		])
+	
+	print(f'  Asking llama3.2 about abstracts read from pubmed')
+	abstract_response: ChatResponse = chat(model='llama3.2', messages=[
+		{
+			'role': 'user',
+			'content': f'After reading {abstract_text}, what can you tell me about \
+								 the future of this research and its potential impact on the field?',
+		},
+		])
+	# look at the top 20 articles and summarize any of findings that would be relevant 
+	# to an investor that is considering investing in this company
+
+	with open(file_path, 'a') as f:
+		f.write(f'### Llama3.2\n\n')
+		# Company Details
+		f.write(f'#### {company_name}\n\n')
+		message_response = company_response['message']['content']
+		message_response = re.sub(r'\n\n', '\n', message_response)
+		f.write(f'{message_response}\n\n')
+		# Drug Details
+		f.write(f'#### Drug Details\n\n')
+		message_response = drug_response['message']['content']
+		message_response = re.sub(r'\n\n', '\n', message_response)
+		f.write(f'{message_response}\n')
+		# Pubmed Abstracts
+		f.write(f'#### Pubmed Abstracts\n\n')
+		message_response = abstract_response['message']['content']
+		message_response = re.sub(r'\n\n', '\n', message_response)
+		f.write(f'{message_response}\n\n')
+
 def default_search(
 		df_dict, 
 		f, 
@@ -415,6 +524,7 @@ def default_search(
 		target=['NMDAR'],
 		mechanism=['NMDAR antagonist']
 ):
+
 	# search for drug/active ingredient in pubchem
 	print(f'PubChem Search: {drug_name} ({active_ingredient})')
 	pubchem_df = search_pubchem(
@@ -454,12 +564,11 @@ def default_search(
 		field='active_ingredient'
 	)
 
-	# FDA search terms for each search term
-	# for search_term in search_terms:
+	# search for 'indication' in 'indications and usage' field
 	print(f'Searching Indication: {indication}...')
 	df_results = find_drug_multiple_fields(
 		df_drugs,
-		['indications_and_usage'],
+		['approved_use', 'indications_and_usage'],
 		indication,
 		unique_values=True
 	)
@@ -470,10 +579,19 @@ def default_search(
 		field='indications_and_usage'
 	)
 
+	# search for 'target' in 'mechanism of action' field
 	print(f'Searching Target: {target}...')
 	df_results = find_drug_multiple_fields(
 		df_drugs,
-		['mechanism_of_action'],
+		[ 'description',
+			'pharm_class_cs', 
+	 	  'pharm_class_epc', 
+			'mechanism_of_action', 
+			'spl_product_data_elements', 
+			'drug_interactions',
+			'clinical_pharmacology',
+			'pharmacokinetics'
+		],
 		target,
 		unique_values=True
 	)
@@ -481,21 +599,53 @@ def default_search(
 		f,
 		df_results,
 		target,
-		field='mechanism_of_action'
+		field='target'
 	)
 
+	# search for 'mechanism of action' in 'mechanism of action' field
 	print(f'Searching Mechanism: {mechanism}...')
 	df_results = find_drug_multiple_fields(
 		df_drugs,
-		['mechanism_of_action'],
+		[ 'description',
+			'pharm_class_cs', 
+	 	  'pharm_class_epc', 
+			'mechanism_of_action', 
+			'spl_product_data_elements', 
+			'drug_interactions',
+			'clinical_pharmacology',
+			'pharmacokinetics'
+		],
 		mechanism,
 		unique_values=True,
-
 	)
 	write_fda_to_markdown(
 		f,
 		df_results,
+		mechanism,
+		field='mechanism_of_action'
+	)
+
+	pubmed_search_terms = [
+		company_name, 
+		drug_name, 
+		active_ingredient, 
+		target, 
 		mechanism
+	]
+	# flatten the search terms
+	pubmed_search_terms = list(set(flatten_list(pubmed_search_terms)))
+	abstract_text = pubmed_search(pubmed_search_terms)
+
+	print(f'Asking llama3.2')
+	llama_to_markdown(
+		f, 
+		company_name, 
+		drug_name, 
+		active_ingredient, 
+		indication, 
+		target, 
+		mechanism,
+		abstract_text
 	)
 
 def main(
