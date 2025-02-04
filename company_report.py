@@ -449,7 +449,7 @@ def synonym_ctgov_search(pubchem_df):
 		ctgov_df = get_ctgov_synonyms(pubchem_df)
 		return ctgov_df
 
-def llama_to_markdown(		
+def llama_to_markdown(	
 		f, 
 		company_name, 
 		drug_name, 
@@ -457,15 +457,16 @@ def llama_to_markdown(
 		indication, 
 		target, 
 		mechanism,
-		abstract_text
+		abstract_text,
+		model='llama3.2',	
 	):
-	# write the response from llama to the markdown file
+	# write the response from model to the markdown file
 	file_path = f.name
 	
 	# ask llama about the company
-	print(f'  Asking llama3.2 about {company_name}')
+	print(f'  Asking {model} about {company_name}')
 	company_response: ChatResponse = chat(
-		model='llama3.2', messages=[
+		model=model, messages=[
 		{
 		'role': 'user',
 		'content': 
@@ -473,8 +474,8 @@ def llama_to_markdown(
 			including the indication and mechanism of action.',
 		},
 	])
-	print(f'  Asking llama3.2 about {drug_name}')
-	drug_response: ChatResponse = chat(model='llama3.2', messages=[
+	print(f'  Asking {model} about {drug_name}')
+	drug_response: ChatResponse = chat(model=model, messages=[
 		{
 			'role': 'user',
 			'content': 
@@ -485,8 +486,8 @@ def llama_to_markdown(
 		},
 		])
 	
-	print(f'  Asking llama3.2 about abstracts read from pubmed')
-	abstract_response: ChatResponse = chat(model='llama3.2', messages=[
+	print(f'  Asking {model} about abstracts read from pubmed')
+	abstract_response: ChatResponse = chat(model=model, messages=[
 		{
 			'role': 'user',
 			'content': f'After reading {abstract_text}, what can you tell me about \
@@ -497,7 +498,7 @@ def llama_to_markdown(
 	# to an investor that is considering investing in this company
 
 	with open(file_path, 'a') as f:
-		f.write(f'### Llama3.2\n\n')
+		f.write(f'### {model}\n\n')
 		# Company Details
 		f.write(f'#### {company_name}\n\n')
 		message_response = company_response['message']['content']
@@ -565,6 +566,8 @@ def default_search(
 	)
 
 	# search for 'indication' in 'indications and usage' field
+
+	## FOR LLMs, ask about "best in class" from info provided
 	print(f'Searching Indication: {indication}...')
 	df_results = find_drug_multiple_fields(
 		df_drugs,
@@ -636,7 +639,8 @@ def default_search(
 	pubmed_search_terms = list(set(flatten_list(pubmed_search_terms)))
 	abstract_text = pubmed_search(pubmed_search_terms)
 
-	print(f'Asking llama3.2')
+	model = 'llama3.2'
+	print(f'Asking {model}')
 	llama_to_markdown(
 		f, 
 		company_name, 
@@ -645,7 +649,22 @@ def default_search(
 		indication, 
 		target, 
 		mechanism,
-		abstract_text
+		abstract_text,
+		model=model
+	)
+
+	model = 'deepseek-r1'
+	print(f'Asking {model}')
+	llama_to_markdown(
+		f, 
+		company_name, 
+		drug_name, 
+		active_ingredient, 
+		indication, 
+		target, 
+		mechanism,
+		abstract_text,
+		model=model
 	)
 
 def main(

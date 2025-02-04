@@ -1,12 +1,31 @@
+# # Amgen
+# company_search = {
+# 	'company_name'			: 'Amgen',
+# 	'drug_name'					: 'Aimovig',
+# 	'active_ingredient'	: 'erenumab',
+# 	'target'						: ['CGRPR'],
+# 	'indication'				: ['migraine'],
+# 	'mechanism'					: ['calcitonin']
+# }
+
+# company_search = {
+# 	'company_name'			: 'Empyrean Medical Systems',
+# 	'drug_name'					: 'morpheus',
+# 	'active_ingredient'	: 'erenumab',
+# 	'target'						: ['CGRPR'],
+# 	'indication'				: ['migraine'],
+# 	'mechanism'					: ['calcitonin']
+# }
+
 # # Azora Therapeutics
-company_search = {
-	'company_name'			: 'Azora Therapeutics',
-	'drug_name'					: 'ATT177',
-	'active_ingredient'	: 'ATT177',
-	'target'						: ['aryl hydrocarbon receptor', 'T-helper 17'],
-	'indication'				: ['autoimmune', 'inflammatory bowel disease', 'psoriasis', 'hidradenitis suppurativa'],
-	'mechanism'					: ['aryl hydrocarbon receptor', 'T-helper 17']
-}
+# company_search = {
+# 	'company_name'			: 'Azora Therapeutics',
+# 	'drug_name'					: 'ATT177',
+# 	'active_ingredient'	: 'ATT177',
+# 	'target'						: ['aryl hydrocarbon receptor', 'T-helper 17'],
+# 	'indication'				: ['autoimmune', 'inflammatory bowel disease', 'psoriasis', 'hidradenitis suppurativa'],
+# 	'mechanism'					: ['aryl hydrocarbon receptor', 'T-helper 17']
+# }
 
 # company_search = {
 # 	'company_name'			: 'Bristol-Myers Squibb',
@@ -21,9 +40,9 @@ company_search = {
 company_search = {
 	'company_name'			: 'Crossbridge Bio',
 	'drug_name'					: 'CBB-120',
-	'active_ingredient'	: 'TROP2',
+	'active_ingredient'	: 'sacituzumab',
 	'indication'				: ['triple-negative breast cancer', 'breast cancer', 'TNBC'],
-	'target'						: ['trop-2', 'trop2', 'Enhertu', 'Trastuzamab'],
+	'target'						: ['trop-2', 'trop2'],
 	'mechanism'					: ['transglutaminase', 'MTGase']
 }
 
